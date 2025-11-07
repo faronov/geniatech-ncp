@@ -59,19 +59,17 @@ jobs:
           python3 -m pip install -r zephyr/scripts/requirements.txt
           python3 -m pip install -r nrf/scripts/requirements.txt
 
-      # Кладём плату и board-specific конфиги в workspace,
-      # не трогая исходники samples/ncp.
       - name: Apply geniatech board and configs
         run: |
           cd "$WORKSPACE_DIR"
-          # boards/arm/geniatech/*
-          if [ -d "$CONFIG_REPO_DIR/boards" ]; then
-            cp -R "$CONFIG_REPO_DIR/boards" .
-          fi
-          # samples/ncp/boards/geniatech/... (mcuboot.conf и т.п.)
-          if [ -d "$CONFIG_REPO_DIR/samples" ]; then
-            cp -R "$CONFIG_REPO_DIR/samples" .
-          fi
+
+          # Добавляем кастомную плату geniatech в SDK (nrf модуль)
+          mkdir -p nrf/boards/arm
+          cp -R "$CONFIG_REPO_DIR/boards/arm/geniatech" nrf/boards/arm/
+
+          # Добавляем board-специфичные файлы для официального NCP sample
+          mkdir -p ncs-zigbee/samples/ncp/boards
+          cp -R "$CONFIG_REPO_DIR/samples/ncp/boards/geniatech" ncs-zigbee/samples/ncp/boards/
 
       - name: Build official NCP sample for geniatech
         run: |
