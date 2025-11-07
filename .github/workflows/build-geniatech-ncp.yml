@@ -92,7 +92,7 @@ jobs:
           rm -rf ncs-zigbee/samples/ncp/boards/geniatech || true
           cp -R "$CONFIG_REPO_DIR/samples/ncp/boards/geniatech" ncs-zigbee/samples/ncp/boards/
 
-      - name: Debug: list geniatech board
+      - name: "Debug: list geniatech board"
         run: |
           cd "$WORKSPACE_DIR"
           echo "== geniatech.yaml =="
