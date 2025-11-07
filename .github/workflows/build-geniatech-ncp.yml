@@ -63,15 +63,18 @@ jobs:
         run: |
           cd "$WORKSPACE_DIR"
 
-          # Добавляем кастомную плату geniatech в SDK (nrf модуль)
-          mkdir -p nrf/boards/arm
-          cp -R "$CONFIG_REPO_DIR/boards/arm/geniatech" nrf/boards/arm/
+          echo ">>> Copy board files"
+          mkdir -p zephyr/boards/arm
+          cp -R "$CONFIG_REPO_DIR/boards/arm/geniatech" zephyr/boards/arm/
 
-          # Добавляем board-специфичные файлы для официального NCP sample
+          echo ">>> Copy NCP sample board overrides"
           mkdir -p ncs-zigbee/samples/ncp/boards
           cp -R "$CONFIG_REPO_DIR/samples/ncp/boards/geniatech" ncs-zigbee/samples/ncp/boards/
 
-      - name: Build official NCP sample for geniatech
+          echo ">>> Debug: check that board yaml is visible"
+          find zephyr/boards -maxdepth 4 -type f -name "geniatech.yaml" -print || true
+
+      - name: Build geniatech Zigbee NCP
         run: |
           cd "$WORKSPACE_DIR"
           west build \
