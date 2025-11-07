@@ -16,3 +16,6 @@ supported:
   - nrf_802154
 vendor: geniatech
 soc: nrf52840
+
+board-qualifiers:
+  - nrf52840qiaa
