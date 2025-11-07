@@ -1,0 +1,91 @@
+name: Build Zigbee NCP (geniatech)
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      NCS_ZIGBEE_TAG: v1.2.1
+      WORKSPACE_DIR: ${{ github.workspace }}/ncs-zigbee-ws
+      CONFIG_REPO_DIR: ${{ github.workspace }}/config
+      BOARD: geniatech
+
+    steps:
+      - name: Checkout config repo (this repo)
+        uses: actions/checkout@v4
+        with:
+          path: config
+
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git cmake ninja-build gperf ccache dfu-util \
+            device-tree-compiler wget python3 python3-pip python3-setuptools \
+            xz-utils
+
+      - name: Install Python tools
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install west
+
+      - name: Install Zephyr SDK
+        run: |
+          ZSDK_VERSION=0.17.4
+          SDK_ARCH=linux-x86_64
+          cd $HOME
+          wget https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${ZSDK_VERSION}/zephyr-sdk-${ZSDK_VERSION}_${SDK_ARCH}.tar.xz
+          tar -xJf zephyr-sdk-${ZSDK_VERSION}_${SDK_ARCH}.tar.xz
+          mv zephyr-sdk-${ZSDK_VERSION} zephyr-sdk
+          echo "ZEPHYR_SDK_INSTALL_DIR=$HOME/zephyr-sdk" >> $GITHUB_ENV
+          echo "ZEPHYR_TOOLCHAIN_VARIANT=zephyr" >> $GITHUB_ENV
+
+      - name: Init ncs-zigbee workspace
+        run: |
+          mkdir -p "$WORKSPACE_DIR"
+          cd "$WORKSPACE_DIR"
+          west init -m https://github.com/nrfconnect/ncs-zigbee --mr ${NCS_ZIGBEE_TAG}
+          west update
+          west zephyr-export
+
+      - name: Install NCS Python requirements
+        run: |
+          cd "$WORKSPACE_DIR"
+          python3 -m pip install -r zephyr/scripts/requirements.txt
+          python3 -m pip install -r nrf/scripts/requirements.txt
+
+      # Кладём плату и board-specific конфиги в workspace,
+      # не трогая исходники samples/ncp.
+      - name: Apply geniatech board and configs
+        run: |
+          cd "$WORKSPACE_DIR"
+          # boards/arm/geniatech/*
+          if [ -d "$CONFIG_REPO_DIR/boards" ]; then
+            cp -R "$CONFIG_REPO_DIR/boards" .
+          fi
+          # samples/ncp/boards/geniatech/... (mcuboot.conf и т.п.)
+          if [ -d "$CONFIG_REPO_DIR/samples" ]; then
+            cp -R "$CONFIG_REPO_DIR/samples" .
+          fi
+
+      - name: Build official NCP sample for geniatech
+        run: |
+          cd "$WORKSPACE_DIR"
+          west build \
+            -b ${BOARD} \
+            ncs-zigbee/samples/ncp \
+            -d build/geniatech_ncp
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: geniatech-ncp-fw
+          path: |
+            ${{ env.WORKSPACE_DIR }}/build/geniatech_ncp/zephyr/zephyr.hex
+            ${{ env.WORKSPACE_DIR }}/build/geniatech_ncp/zephyr/zephyr.bin
+            ${{ env.WORKSPACE_DIR }}/build/geniatech_ncp/zephyr/app_update.bin

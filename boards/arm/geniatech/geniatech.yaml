@@ -1,0 +1,18 @@
+identifier: geniatech
+name: Geniatech nRF52840 Zigbee NCP board
+type: mcu
+arch: arm
+toolchain:
+  - zephyr
+ram: 256
+flash: 1024
+supported:
+  - ble
+  - ieee802154
+  - gpio
+  - uart
+  - spi
+  - i2c
+  - nrf_802154
+vendor: geniatech
+soc: nrf52840qiaa
