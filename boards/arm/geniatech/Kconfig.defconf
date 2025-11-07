@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: Apache-2.0
+
+if BOARD_GENIATECH
+
+config BOARD
+    default "geniatech"
+
+config GPIO
+    default y
+
+config SERIAL
+    default y
+
+config NRFX_UARTE0
+    default y
+
+config NRFX_UARTE1
+    default y
+
+config FLASH
+    default y
+
+config FLASH_MAP
+    default y
+
+config IMG_MANAGER
+    default y
+
+config PM_SINGLE_IMAGE
+    default n
+
+config USB_DEVICE_STACK
+    default n
+
+config USB_CDC_ACM
+    default n
+
+endif
