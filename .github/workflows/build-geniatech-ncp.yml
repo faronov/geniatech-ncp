@@ -9,10 +9,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    # Используем заранее собранный образ
     container:
       image: ghcr.io/${{ github.repository_owner }}/ncs-zigbee-1.2.1-builder:latest
-      options: --user 1000
+      # options: --user 1000   # <-- ЭТО УБРАЛИ
 
     permissions:
       contents: read
@@ -20,14 +19,11 @@ jobs:
 
     env:
       WORKSPACE_DIR: /opt/ncs-zigbee-ws
-      CONFIG_REPO_DIR: /config
       BOARD: geniatech
 
     steps:
       - name: Checkout config repo
         uses: actions/checkout@v4
-        with:
-          path: config
 
       - name: Apply geniatech board and NCP overrides
         run: |
@@ -36,12 +32,12 @@ jobs:
           echo ">>> Copy geniatech board into Zephyr"
           mkdir -p zephyr/boards/arm
           rm -rf zephyr/boards/arm/geniatech || true
-          cp -R "$CONFIG_REPO_DIR/boards/arm/geniatech" zephyr/boards/arm/
+          cp -R "$GITHUB_WORKSPACE/boards/arm/geniatech" zephyr/boards/arm/
 
           echo ">>> Copy NCP sample overrides"
           mkdir -p ncs-zigbee/samples/ncp/boards
           rm -rf ncs-zigbee/samples/ncp/boards/geniatech || true
-          cp -R "$CONFIG_REPO_DIR/samples/ncp/boards/geniatech" ncs-zigbee/samples/ncp/boards/
+          cp -R "$GITHUB_WORKSPACE/samples/ncp/boards/geniatech" ncs-zigbee/samples/ncp/boards/
 
           echo ">>> Debug: list geniatech board files"
           find zephyr/boards/arm/geniatech -maxdepth 2 -type f -print || true
