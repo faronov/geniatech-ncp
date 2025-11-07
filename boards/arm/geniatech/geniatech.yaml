@@ -15,4 +15,4 @@ supported:
   - i2c
   - nrf_802154
 vendor: geniatech
-soc: nrf52840qiaa
+soc: nrf52840
