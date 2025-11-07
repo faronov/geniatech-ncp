@@ -11,17 +11,18 @@ jobs:
 
     env:
       NCS_ZIGBEE_TAG: v1.2.1
+      ZSDK_VERSION: 0.17.4
       WORKSPACE_DIR: ${{ github.workspace }}/ncs-zigbee-ws
       CONFIG_REPO_DIR: ${{ github.workspace }}/config
       BOARD: geniatech
 
     steps:
-      - name: Checkout config repo (this repo)
+      - name: Checkout config repo
         uses: actions/checkout@v4
         with:
           path: config
 
-      - name: Install host dependencies
+      - name: Install host deps
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -34,46 +35,72 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install west
 
-      - name: Install Zephyr SDK
+      # ---------- CACHE ZEPHYR SDK ----------
+      - name: Cache Zephyr SDK
+        id: cache-zephyr-sdk
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.home }}/zephyr-sdk
+          key: zephyr-sdk-${{ env.ZSDK_VERSION }}
+
+      - name: Install Zephyr SDK (if missing)
+        if: steps.cache-zephyr-sdk.outputs.cache-hit != 'true'
         run: |
-          ZSDK_VERSION=0.17.4
           SDK_ARCH=linux-x86_64
           cd $HOME
           wget https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${ZSDK_VERSION}/zephyr-sdk-${ZSDK_VERSION}_${SDK_ARCH}.tar.xz
           tar -xJf zephyr-sdk-${ZSDK_VERSION}_${SDK_ARCH}.tar.xz
           mv zephyr-sdk-${ZSDK_VERSION} zephyr-sdk
+          rm zephyr-sdk-${ZSDK_VERSION}_${SDK_ARCH}.tar.xz
+
+      - name: Export Zephyr SDK env
+        run: |
           echo "ZEPHYR_SDK_INSTALL_DIR=$HOME/zephyr-sdk" >> $GITHUB_ENV
           echo "ZEPHYR_TOOLCHAIN_VARIANT=zephyr" >> $GITHUB_ENV
 
-      - name: Init ncs-zigbee workspace
+      # ---------- CACHE NCS-ZIGBEE WORKSPACE ----------
+      - name: Cache ncs-zigbee workspace
+        id: cache-ncs
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.WORKSPACE_DIR }}
+          key: ncs-zigbee-${{ env.NCS_ZIGBEE_TAG }}-v1
+
+      - name: Init ncs-zigbee workspace (if missing)
+        if: steps.cache-ncs.outputs.cache-hit != 'true'
         run: |
           mkdir -p "$WORKSPACE_DIR"
           cd "$WORKSPACE_DIR"
           west init -m https://github.com/nrfconnect/ncs-zigbee --mr ${NCS_ZIGBEE_TAG}
           west update
           west zephyr-export
-
-      - name: Install NCS Python requirements
-        run: |
-          cd "$WORKSPACE_DIR"
           python3 -m pip install -r zephyr/scripts/requirements.txt
           python3 -m pip install -r nrf/scripts/requirements.txt
 
-      - name: Apply geniatech board and configs
+      # ---------- APPLY YOUR BOARD + CONFIGS ----------
+      - name: Apply geniatech board and NCP overrides
         run: |
           cd "$WORKSPACE_DIR"
 
-          echo ">>> Copy board files"
+          echo ">>> Copy geniatech board into Zephyr"
           mkdir -p zephyr/boards/arm
+          rm -rf zephyr/boards/arm/geniatech || true
           cp -R "$CONFIG_REPO_DIR/boards/arm/geniatech" zephyr/boards/arm/
 
-          echo ">>> Copy NCP sample board overrides"
+          echo ">>> Copy NCP sample overrides"
           mkdir -p ncs-zigbee/samples/ncp/boards
+          rm -rf ncs-zigbee/samples/ncp/boards/geniatech || true
           cp -R "$CONFIG_REPO_DIR/samples/ncp/boards/geniatech" ncs-zigbee/samples/ncp/boards/
 
-          echo ">>> Debug: check that board yaml is visible"
-          find zephyr/boards -maxdepth 4 -type f -name "geniatech.yaml" -print || true
+      - name: Debug: list geniatech board
+        run: |
+          cd "$WORKSPACE_DIR"
+          echo "== geniatech.yaml =="
+          find zephyr/boards -maxdepth 5 -name "geniatech.yaml" -print || true
+          echo "== geniatech.dts =="
+          find zephyr/boards -maxdepth 5 -name "geniatech.dts" -print || true
 
+      # ---------- BUILD ----------
       - name: Build geniatech Zigbee NCP
         run: |
           cd "$WORKSPACE_DIR"
@@ -82,6 +109,7 @@ jobs:
             ncs-zigbee/samples/ncp \
             -d build/geniatech_ncp
 
+      # ---------- ARTIFACTS ----------
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
