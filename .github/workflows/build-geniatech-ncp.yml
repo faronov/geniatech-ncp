@@ -9,11 +9,18 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    # Используем заранее собранный образ
+    container:
+      image: ghcr.io/${{ github.repository_owner }}/ncs-zigbee-1.2.1-builder:latest
+      options: --user 1000
+
+    permissions:
+      contents: read
+      packages: read
+
     env:
-      NCS_ZIGBEE_TAG: v1.2.1
-      ZSDK_VERSION: 0.17.4
-      WORKSPACE_DIR: ${{ github.workspace }}/ncs-zigbee-ws
-      CONFIG_REPO_DIR: ${{ github.workspace }}/config
+      WORKSPACE_DIR: /opt/ncs-zigbee-ws
+      CONFIG_REPO_DIR: /config
       BOARD: geniatech
 
     steps:
@@ -22,62 +29,6 @@ jobs:
         with:
           path: config
 
-      - name: Install host deps
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            git cmake ninja-build gperf ccache dfu-util \
-            device-tree-compiler wget python3 python3-pip python3-setuptools \
-            xz-utils
-
-      - name: Install Python tools
-        run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install west
-
-      # ---------- CACHE ZEPHYR SDK ----------
-      - name: Cache Zephyr SDK
-        id: cache-zephyr-sdk
-        uses: actions/cache@v4
-        with:
-          path: ${{ runner.home }}/zephyr-sdk
-          key: zephyr-sdk-${{ env.ZSDK_VERSION }}
-
-      - name: Install Zephyr SDK (if missing)
-        if: steps.cache-zephyr-sdk.outputs.cache-hit != 'true'
-        run: |
-          SDK_ARCH=linux-x86_64
-          cd $HOME
-          wget https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${ZSDK_VERSION}/zephyr-sdk-${ZSDK_VERSION}_${SDK_ARCH}.tar.xz
-          tar -xJf zephyr-sdk-${ZSDK_VERSION}_${SDK_ARCH}.tar.xz
-          mv zephyr-sdk-${ZSDK_VERSION} zephyr-sdk
-          rm zephyr-sdk-${ZSDK_VERSION}_${SDK_ARCH}.tar.xz
-
-      - name: Export Zephyr SDK env
-        run: |
-          echo "ZEPHYR_SDK_INSTALL_DIR=$HOME/zephyr-sdk" >> $GITHUB_ENV
-          echo "ZEPHYR_TOOLCHAIN_VARIANT=zephyr" >> $GITHUB_ENV
-
-      # ---------- CACHE NCS-ZIGBEE WORKSPACE ----------
-      - name: Cache ncs-zigbee workspace
-        id: cache-ncs
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.WORKSPACE_DIR }}
-          key: ncs-zigbee-${{ env.NCS_ZIGBEE_TAG }}-v1
-
-      - name: Init ncs-zigbee workspace (if missing)
-        if: steps.cache-ncs.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p "$WORKSPACE_DIR"
-          cd "$WORKSPACE_DIR"
-          west init -m https://github.com/nrfconnect/ncs-zigbee --mr ${NCS_ZIGBEE_TAG}
-          west update
-          west zephyr-export
-          python3 -m pip install -r zephyr/scripts/requirements.txt
-          python3 -m pip install -r nrf/scripts/requirements.txt
-
-      # ---------- APPLY YOUR BOARD + CONFIGS ----------
       - name: Apply geniatech board and NCP overrides
         run: |
           cd "$WORKSPACE_DIR"
@@ -92,15 +43,9 @@ jobs:
           rm -rf ncs-zigbee/samples/ncp/boards/geniatech || true
           cp -R "$CONFIG_REPO_DIR/samples/ncp/boards/geniatech" ncs-zigbee/samples/ncp/boards/
 
-      - name: "Debug: list geniatech board"
-        run: |
-          cd "$WORKSPACE_DIR"
-          echo "== geniatech.yaml =="
-          find zephyr/boards -maxdepth 5 -name "geniatech.yaml" -print || true
-          echo "== geniatech.dts =="
-          find zephyr/boards -maxdepth 5 -name "geniatech.dts" -print || true
+          echo ">>> Debug: list geniatech board files"
+          find zephyr/boards/arm/geniatech -maxdepth 2 -type f -print || true
 
-      # ---------- BUILD ----------
       - name: Build geniatech Zigbee NCP
         run: |
           cd "$WORKSPACE_DIR"
@@ -109,12 +54,11 @@ jobs:
             ncs-zigbee/samples/ncp \
             -d build/geniatech_ncp
 
-      # ---------- ARTIFACTS ----------
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: geniatech-ncp-fw
           path: |
-            ${{ env.WORKSPACE_DIR }}/build/geniatech_ncp/zephyr/zephyr.hex
-            ${{ env.WORKSPACE_DIR }}/build/geniatech_ncp/zephyr/zephyr.bin
-            ${{ env.WORKSPACE_DIR }}/build/geniatech_ncp/zephyr/app_update.bin
+            /opt/ncs-zigbee-ws/build/geniatech_ncp/zephyr/zephyr.hex
+            /opt/ncs-zigbee-ws/build/geniatech_ncp/zephyr/zephyr.bin
+            /opt/ncs-zigbee-ws/build/geniatech_ncp/zephyr/app_update.bin

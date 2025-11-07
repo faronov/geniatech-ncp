@@ -1,0 +1,41 @@
+FROM ubuntu:22.04
+
+ARG NCS_ZIGBEE_TAG=v1.2.1
+ARG ZSDK_VERSION=0.17.4
+ARG SDK_ARCH=linux-x86_64
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
+
+# 1. Базовые зависимости
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git cmake ninja-build gperf ccache dfu-util \
+    device-tree-compiler wget xz-utils \
+    python3 python3-pip python3-setuptools python3-wheel \
+    ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+# 2. Zephyr SDK
+RUN wget https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${ZSDK_VERSION}/zephyr-sdk-${ZSDK_VERSION}_${SDK_ARCH}.tar.xz \
+    && tar -xJf zephyr-sdk-${ZSDK_VERSION}_${SDK_ARCH}.tar.xz -C /opt \
+    && rm zephyr-sdk-${ZSDK_VERSION}_${SDK_ARCH}.tar.xz \
+    && mv /opt/zephyr-sdk-${ZSDK_VERSION} /opt/zephyr-sdk
+
+ENV ZEPHYR_SDK_INSTALL_DIR=/opt/zephyr-sdk
+ENV ZEPHYR_TOOLCHAIN_VARIANT=zephyr
+
+# 3. Python-инструменты
+RUN python3 -m pip install --upgrade pip \
+    && python3 -m pip install west
+
+# 4. ncs-zigbee workspace
+WORKDIR /opt
+RUN west init -m https://github.com/nrfconnect/ncs-zigbee --mr ${NCS_ZIGBEE_TAG} ncs-zigbee-ws \
+    && cd ncs-zigbee-ws \
+    && west update \
+    && west zephyr-export \
+    && python3 -m pip install -r zephyr/scripts/requirements.txt \
+    && python3 -m pip install -r nrf/scripts/requirements.txt
+
+WORKDIR /opt/ncs-zigbee-ws

@@ -1,0 +1,42 @@
+name: Build & Publish ncs-zigbee builder image
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'Dockerfile.ncs-zigbee'
+      - '.github/workflows/publish-ncs-zigbee-image.yml'
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    env:
+      IMAGE_NAME: ncs-zigbee-1.2.1-builder
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build image
+        run: |
+          docker build \
+            -f Dockerfile.ncs-zigbee \
+            -t ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME:latest \
+            .
+
+      - name: Push image
+        run: |
+          docker push ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME:latest
